@@ -179,6 +179,48 @@ public class MobileStockServiceAPI {
     }
 
     @GET
+    @Path("/getItemUnit")
+    public Response getItemUnit(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("itemcode") String strItemCode
+    ) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            String _where = "";
+            StringBuilder __where = new StringBuilder();
+            String _whereFinal = "";
+
+            String __strQUERY1 = "select iuu.code,iu.name_1 from ic_unit_use iuu left join ic_unit iu on iu.code = iuu.code  where ic_code  = '" + strItemCode + "' ";
+            System.out.println(__strQUERY1);
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+                obj.put("unit_code", __rsHead.getString("code"));
+                obj.put("unit_name", __rsHead.getString("name_1"));
+
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
     @Path("/getItemPrice")
     public Response getItemPrice(
             @QueryParam("provider") String strProvider,
@@ -195,7 +237,7 @@ public class MobileStockServiceAPI {
             StringBuilder __where = new StringBuilder();
             String _whereFinal = "";
 
-            String __strQUERY1 = "select ic_code,unit_code,coalesce((select max(average_cost) from sml_ic_function_stock_balance_warehouse_location('NOW()','" + strItemCode + "', '', '') where ic_unit_code = unit_code),0) as average_cost,price_0,price_1,price_2,price_3,price_4,price_5,price_6,price_7,price_8,price_9,sale_type from ic_inventory_price_formula where ic_code = '" + strItemCode + "' ";
+            String __strQUERY1 = "select ic_code,unit_code,price_0,price_1,price_2,price_3,price_4,price_5,price_6,price_7,price_8,price_9,sale_type from ic_inventory_price_formula where ic_code = '" + strItemCode + "' ";
             System.out.println(__strQUERY1);
             Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
             ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
@@ -205,7 +247,6 @@ public class MobileStockServiceAPI {
                 JSONObject obj = new JSONObject();
                 obj.put("item_code", __rsHead.getString("ic_code"));
                 obj.put("unit_code", __rsHead.getString("unit_code"));
-                obj.put("average_cost", String.format("%.2f", Float.parseFloat(__rsHead.getString("average_cost"))));
                 obj.put("price_0", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_0"))));
                 obj.put("price_1", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_1"))));
                 obj.put("price_2", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_2"))));
@@ -216,6 +257,153 @@ public class MobileStockServiceAPI {
                 obj.put("price_7", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_7"))));
                 obj.put("price_8", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_8"))));
                 obj.put("price_9", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_9"))));
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/getItemBarcodePrice")
+    public Response getItemBarcodePrice(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("itemcode") String strItemCode
+    ) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            String _where = "";
+            StringBuilder __where = new StringBuilder();
+            String _whereFinal = "";
+
+            String __strQUERY1 = "select barcode,unit_code,price,price_2,price_3,price_4 from ic_inventory_barcode where ic_code  = '" + strItemCode + "' and status = 0";
+            System.out.println(__strQUERY1);
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+                obj.put("barcode", __rsHead.getString("barcode"));
+                obj.put("unit_code", __rsHead.getString("unit_code"));
+                obj.put("price", String.format("%.2f", Float.parseFloat(__rsHead.getString("price"))));
+                obj.put("price_2", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_2"))));
+                obj.put("price_3", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_3"))));
+                obj.put("price_4", String.format("%.2f", Float.parseFloat(__rsHead.getString("price_4"))));
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/getItemPriceStandard")
+    public Response getItemPriceStandard(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("itemcode") String strItemCode
+    ) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            String _where = "";
+            StringBuilder __where = new StringBuilder();
+            String _whereFinal = "";
+
+            String __strQUERY1 = "select unit_code,from_qty,to_qty,from_date,to_date,sale_type,cust_group_1,cust_group_2,price_type,cust_code,sale_price1,sale_price2 from ic_inventory_price where ic_code  = '" + strItemCode + "' and price_mode = 1 and to_date >= now() order by line_number asc";
+            System.out.println(__strQUERY1);
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+                obj.put("unit_code", __rsHead.getString("unit_code"));
+                obj.put("from_date", __rsHead.getString("from_date"));
+                obj.put("to_date", __rsHead.getString("to_date"));
+                obj.put("sale_type", __rsHead.getString("sale_type"));
+                obj.put("cust_group_1", __rsHead.getString("cust_group_1"));
+                obj.put("cust_group_2", __rsHead.getString("cust_group_2"));
+                obj.put("price_type", __rsHead.getString("price_type"));
+                obj.put("cust_code", __rsHead.getString("cust_code"));
+                obj.put("from_qty", String.format("%.2f", Float.parseFloat(__rsHead.getString("from_qty"))));
+                obj.put("to_qty", String.format("%.2f", Float.parseFloat(__rsHead.getString("to_qty"))));
+                obj.put("sale_price1", String.format("%.2f", Float.parseFloat(__rsHead.getString("sale_price1"))));
+                obj.put("sale_price2", String.format("%.2f", Float.parseFloat(__rsHead.getString("sale_price2"))));
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/getItemPriceNormal")
+    public Response getItemPriceNormal(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("itemcode") String strItemCode
+    ) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            String _where = "";
+            StringBuilder __where = new StringBuilder();
+            String _whereFinal = "";
+
+            String __strQUERY1 = "select unit_code,from_qty,to_qty,from_date,to_date,sale_type,cust_group_1,cust_group_2,price_type,cust_code,sale_price1,sale_price2 from ic_inventory_price where ic_code  = '" + strItemCode + "' and price_mode = 0 and to_date >= now() order by line_number asc";
+            System.out.println(__strQUERY1);
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+                obj.put("unit_code", __rsHead.getString("unit_code"));
+                obj.put("from_date", __rsHead.getString("from_date"));
+                obj.put("to_date", __rsHead.getString("to_date"));
+                obj.put("sale_type", __rsHead.getString("sale_type"));
+                obj.put("cust_group_1", __rsHead.getString("cust_group_1"));
+                obj.put("cust_group_2", __rsHead.getString("cust_group_2"));
+                obj.put("price_type", __rsHead.getString("price_type"));
+                obj.put("cust_code", __rsHead.getString("cust_code"));
+                obj.put("from_qty", String.format("%.2f", Float.parseFloat(__rsHead.getString("from_qty"))));
+                obj.put("to_qty", String.format("%.2f", Float.parseFloat(__rsHead.getString("to_qty"))));
+                obj.put("sale_price1", String.format("%.2f", Float.parseFloat(__rsHead.getString("sale_price1"))));
+                obj.put("sale_price2", String.format("%.2f", Float.parseFloat(__rsHead.getString("sale_price2"))));
                 jsarr.put(obj);
             }
 
@@ -1426,7 +1614,7 @@ public class MobileStockServiceAPI {
                     + "trans_flag, trans_type, calc_flag, doc_no, doc_date, doc_time, "
                     + "doc_date_calc, doc_time_calc, last_status, line_number, ratio, "
                     + "stand_value, divide_value, item_code, item_name, unit_code, qty, "
-                    + "wh_code, shelf_code, price, sum_amount, branch_code"
+                    + "wh_code, shelf_code, price, sum_amount, branch_code,wh_code_2, shelf_code_2"
                     + ") VALUES ("
                     + "124, 3, 0, ?, ?, ?, ?, ?, 0, ?, "
                     + "(SELECT ratio FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
@@ -1460,6 +1648,8 @@ public class MobileStockServiceAPI {
                     ps.setString(17, whcode);
                     ps.setString(18, locationcode);
                     ps.setString(19, branchcode);
+                    ps.setString(20, towhcode);
+                    ps.setString(21, tolocationcode);
 
                     ps.addBatch();
                 }
@@ -1700,7 +1890,7 @@ public class MobileStockServiceAPI {
                 ps.setString(3, docno);
                 ps.executeUpdate();
             }
-            
+
             ///-----------------process--------------///
             String sqlProcess
                     = "insert into process (process_name, wherein) select 'IC', item_code from ic_trans_detail where doc_no =? and trans_flag = 70";
@@ -1709,7 +1899,6 @@ public class MobileStockServiceAPI {
                 ps.setString(1, docref);
                 ps.executeUpdate();
             }
-
 
             // ---------- COMMIT ----------
             conn.commit();
