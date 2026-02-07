@@ -1547,6 +1547,129 @@ public class MobileStockServiceAPI {
     }
 
     @POST
+    @Path("/approveSaveHandHeld")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response approveSaveHandHeld(
+            @QueryParam("provider") String provider,
+            @QueryParam("dbname") String dbName,
+            String data) {
+
+        JSONObject response = new JSONObject();
+        Connection conn = null;
+
+        try {
+            // ---------- Parse JSON ----------
+            JSONObject req = new JSONObject(data);
+
+            String docno = req.optString("docno");
+            String docref = req.optString("docref");
+            String branchcode = req.optString("branchcode");
+            String whcode = req.optString("whcode");
+            String locationcode = req.optString("locationcode");
+            String remark = req.optString("remark");
+            String usercode = req.optString("usercode").toUpperCase();
+            String docdate = req.optString("docdate");
+            String doctime = req.optString("doctime");
+            JSONArray details = req.optJSONArray("details");
+
+            if (details == null || details.length() == 0) {
+                throw new Exception("details is empty");
+            }
+
+            // ---------- Connect DB ----------
+            _routine routine = new _routine();
+            conn = routine._connect(dbName.toLowerCase(), _global.FILE_CONFIG(provider));
+            conn.setAutoCommit(false); // 🔥 START TRANSACTION
+
+            // ---------- Insert ic_trans_detail ----------
+            String sqlDetail
+                    = "INSERT INTO barcode_import_list_detail ("
+                    + "doc_no, doc_date, doc_time, "
+                    + " item_code, unit_code, qty"
+                    + ") VALUES ("
+                    + " ?, ?, ?, ?, ?, ?  "
+                    + ")";
+            double sum_qty = 0;
+            try (PreparedStatement ps = conn.prepareStatement(sqlDetail)) {
+                for (int i = 0; i < details.length(); i++) {
+                    JSONObject d = details.getJSONObject(i);
+
+                    ps.setString(1, docref);
+                    ps.setDate(2, java.sql.Date.valueOf(docdate));
+                    ps.setString(3, doctime);
+                    ps.setString(4, d.getString("item_code"));
+                    ps.setString(5, d.getString("unit_code"));
+                    ps.setBigDecimal(6, new BigDecimal(d.getString("qty")));
+
+                    sum_qty += Double.parseDouble(d.getString("qty"));
+
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+
+            // ---------- Insert ic_trans ----------
+            String sqlTrans
+                    = "INSERT INTO barcode_import_list (machine_name, doc_no, doc_date, doc_time, "
+                    + "qty,wh_code,shelf_code) "
+                    + "VALUES (?, ?, ?, ?, ?,?,?)";
+
+            try (PreparedStatement ps = conn.prepareStatement(sqlTrans)) {
+                ps.setString(1, usercode);
+                ps.setString(2, docref);
+                ps.setDate(3, java.sql.Date.valueOf(docdate));
+                ps.setString(4, doctime);
+                ps.setDouble(5, sum_qty);
+                ps.setString(6, whcode);
+                ps.setString(7, locationcode);
+                ps.executeUpdate();
+            }
+
+            // ---------- Update msc_cart ----------
+            String sqlUpdateCart
+                    = "UPDATE msc_cart SET status=5, doc_ref=?, user_approve=?, approve_datetime=now() "
+                    + "WHERE doc_no=?";
+
+            try (PreparedStatement ps = conn.prepareStatement(sqlUpdateCart)) {
+                ps.setString(1, docref);
+                ps.setString(2, usercode);
+                ps.setString(3, docno);
+                ps.executeUpdate();
+            }
+
+            // ---------- COMMIT ----------
+            conn.commit();
+
+            response.put("success", true);
+            response.put("docref", docref);
+            return Response.ok(response.toString()).build();
+
+        } catch (Exception e) {
+            try {
+                if (conn != null) {
+                    conn.rollback(); // 🔥 ROLLBACK
+                }
+            } catch (Exception ignore) {
+            }
+
+            return Response.status(400)
+                    .entity(new JSONObject()
+                            .put("success", false)
+                            .put("error", e.getMessage())
+                            .toString())
+                    .build();
+        } finally {
+            try {
+                if (conn != null) {
+                    conn.close();
+                }
+            } catch (Exception ignore) {
+            }
+        }
+    }
+
+    @POST
     @Path("/approveSaveRequestTransfer")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
