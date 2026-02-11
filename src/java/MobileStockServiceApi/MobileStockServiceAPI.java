@@ -1586,9 +1586,9 @@ public class MobileStockServiceAPI {
             String sqlDetail
                     = "INSERT INTO barcode_import_list_detail ("
                     + "doc_no, doc_date, doc_time, "
-                    + " item_code, unit_code, qty"
+                    + " item_code, unit_code, qty,barcode"
                     + ") VALUES ("
-                    + " ?, ?, ?, ?, ?, ?  "
+                    + " ?, ?, ?, ?, ?, ?, ?  "
                     + ")";
             double sum_qty = 0;
             try (PreparedStatement ps = conn.prepareStatement(sqlDetail)) {
@@ -1601,7 +1601,7 @@ public class MobileStockServiceAPI {
                     ps.setString(4, d.getString("item_code"));
                     ps.setString(5, d.getString("unit_code"));
                     ps.setBigDecimal(6, new BigDecimal(d.getString("qty")));
-
+                    ps.setString(7, d.getString("barcode"));
                     sum_qty += Double.parseDouble(d.getString("qty"));
 
                     ps.addBatch();
@@ -2584,7 +2584,7 @@ public class MobileStockServiceAPI {
             _routine __routine = new _routine();
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
 
-            String __strQUERY1 = "SELECT *,(select name_1 from ap_supplier where code=cust_code limit 1 ) as cust_name,(select name_1 from erp_user where code=creator_code limit 1 ) as creator_name,(select name_1 from ic_warehouse where code=wh_to limit 1 ) as to_wh_name,(select name_1 from ic_shelf where code=location_to and whcode=wh_to limit 1 ) as to_location_name,(select name_1 from ic_warehouse where code=wh_code limit 1 ) as wh_name,(select name_1 from ic_shelf where code=location_code and whcode=wh_code limit 1 ) as location_name,(select count(doc_no) from msc_cart_detail where msc_cart_detail.doc_no=msc_cart.doc_no) as item_count,carts FROM msc_cart where status=0 and is_merge = 0 and branch_code='" + strBranchcode + "' and trans_flag = '" + strTransFlag + "' ORDER BY create_datetime desc limit 200";
+            String __strQUERY1 = "SELECT *,(select name_1 from ap_supplier where code=cust_code limit 1 ) as cust_name,(select name_1 from erp_user where code=creator_code limit 1 ) as creator_name,(select name_1 from ic_warehouse where code=wh_to limit 1 ) as to_wh_name,(select name_1 from ic_shelf where code=location_to and whcode=wh_to limit 1 ) as to_location_name,(select name_1 from ic_warehouse where code=wh_code limit 1 ) as wh_name,(select name_1 from ic_shelf where code=location_code and whcode=wh_code limit 1 ) as location_name,(select count(doc_no) from msc_cart_detail where msc_cart_detail.doc_no=msc_cart.doc_no) as item_count,carts FROM msc_cart where  is_merge = 0 and branch_code='" + strBranchcode + "' and trans_flag = '" + strTransFlag + "' ORDER BY create_datetime desc limit 200";
 
             Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
             ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
@@ -2610,7 +2610,7 @@ public class MobileStockServiceAPI {
                 obj.put("is_merge", __rsHead.getInt("is_merge"));
                 obj.put("is_approve", __rsHead.getInt("is_approve"));
                 obj.put("item_count", __rsHead.getInt("item_count"));
-                obj.put("approve_code", __rsHead.getString("approve_code"));
+                obj.put("approve_code", __rsHead.getString("user_approve"));
                 obj.put("approve_date_time", __rsHead.getString("approve_date_time"));
                 obj.put("create_datetime", __rsHead.getString("create_datetime"));
                 obj.put("creator_name", __rsHead.getString("creator_name"));
@@ -3920,7 +3920,7 @@ public class MobileStockServiceAPI {
             }
 
             String __strQUERYdetail = "insert into msc_cart_detail (doc_no,barcode,item_code,unit_code,wh_code,location_code,qty,balance_qty,diff_qty,is_approve,location,is_no_stock,line_number) "
-                    + "select '" + docno + "','',item_code,unit_code,'" + whcode + "','" + locationcode + "',sum(qty) as qty,MAX(balance_qty) AS balance_qty,MAX(balance_qty) - SUM(qty) AS diff_qty,0,STRING_AGG(COALESCE(NULLIF(location, ''), NULL), ', ') AS location,min(is_no_stock),MAX(line_number) from msc_cart_detail where doc_no in (" + docNoIn + ") group by item_code,unit_code ";
+                    + "select '" + docno + "',barcode,item_code,unit_code,'" + whcode + "','" + locationcode + "',sum(qty) as qty,MAX(balance_qty) AS balance_qty,MAX(balance_qty) - SUM(qty) AS diff_qty,0,STRING_AGG(COALESCE(NULLIF(location, ''), NULL), ', ') AS location,min(is_no_stock),MAX(line_number) from msc_cart_detail where doc_no in (" + docNoIn + ") group by item_code,unit_code ";
             Statement __stmtdetail = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
             __stmtdetail.executeUpdate(__strQUERYdetail);
             __stmtdetail.close();
@@ -4198,7 +4198,7 @@ public class MobileStockServiceAPI {
                 JSONObject objJSDataItem = items.getJSONObject(i);
                 System.out.println("" + objJSDataItem);
                 _insert.append("insert into msc_cart_detail (doc_no,barcode,item_code,unit_code,wh_code,location_code,qty,balance_qty,diff_qty,is_approve,location,is_no_stock,line_number) "
-                        + "values ('" + docno + "','','" + objJSDataItem.getString("item_code") + "','" + objJSDataItem.getString("unit_code") + "','" + whcode + "','" + locationcode + "','" + objJSDataItem.getInt("qty") + "','" + objJSDataItem.get("balance_qty") + "','" + objJSDataItem.getInt("diff_qty") + "','" + objJSDataItem.getInt("is_approve") + "','" + objJSDataItem.getString("location") + "','" + objJSDataItem.getInt("is_no_stock") + "','" + objJSDataItem.getInt("line_number") + "');");
+                        + "values ('" + docno + "','" + objJSDataItem.getString("barcode") + "','" + objJSDataItem.getString("item_code") + "','" + objJSDataItem.getString("unit_code") + "','" + whcode + "','" + locationcode + "','" + objJSDataItem.getInt("qty") + "','" + objJSDataItem.get("balance_qty") + "','" + objJSDataItem.getInt("diff_qty") + "','" + objJSDataItem.getInt("is_approve") + "','" + objJSDataItem.getString("location") + "','" + objJSDataItem.getInt("is_no_stock") + "','" + objJSDataItem.getInt("line_number") + "');");
                 if (i == 0) {
                     list_tag_code += "'" + objJSDataItem.getString("tag_code") + "'";
                 } else {
@@ -4266,7 +4266,7 @@ public class MobileStockServiceAPI {
                 String location = objJSDataItem.has("location") ? objJSDataItem.getString("location") : "";
 
                 String __strQUERYz = "insert into msc_cart_detail (doc_no,barcode,item_code,unit_code,wh_code,location_code,qty,balance_qty,diff_qty,is_approve,location,is_no_stock,line_number) "
-                        + "values ('" + docno + "','','" + objJSDataItem.getString("item_code") + "','" + objJSDataItem.getString("unit_code") + "','" + whcode + "','" + locationcode + "','" + objJSDataItem.getInt("qty") + "','" + objJSDataItem.get("balance_qty") + "','" + objJSDataItem.getInt("diff_qty") + "','" + objJSDataItem.getInt("is_approve") + "','" + location + "','" + is_no_stock + "','" + line_number + "');";
+                        + "values ('" + docno + "','" + objJSDataItem.getString("barcode") + "','" + objJSDataItem.getString("item_code") + "','" + objJSDataItem.getString("unit_code") + "','" + whcode + "','" + locationcode + "','" + objJSDataItem.getInt("qty") + "','" + objJSDataItem.get("balance_qty") + "','" + objJSDataItem.getInt("diff_qty") + "','" + objJSDataItem.getInt("is_approve") + "','" + location + "','" + is_no_stock + "','" + line_number + "');";
                 System.out.println("" + __strQUERYz);
                 Statement __stmtz;
                 __stmtz = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
