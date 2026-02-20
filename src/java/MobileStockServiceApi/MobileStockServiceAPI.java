@@ -956,8 +956,11 @@ public class MobileStockServiceAPI {
 
             _routine __routine = new _routine();
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
-
-            String __strQUERY1 = "SELECT code,name_1 FROM ic_warehouse  where branch_code = '" + strBranchcode.toUpperCase() + "' ORDER BY code";
+            String _where = "";
+            if (!strBranchcode.equals("")) {
+                _where = "branch_code = '" + strBranchcode.toUpperCase() + "'";
+            }
+            String __strQUERY1 = "SELECT code,name_1 FROM ic_warehouse  where 1=1 " + _where + " ORDER BY code";
             System.out.println(__strQUERY1);
             Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
             ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
@@ -1743,7 +1746,7 @@ public class MobileStockServiceAPI {
                     + "(SELECT ratio FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT stand_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT divide_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
-                    + "?, ?, ?, ?, ?, ?, 0, 0, ?"
+                    + "?, ?, ?, ?, ?, ?, 0, 0, ?,?,?"
                     + ")";
 
             try (PreparedStatement ps = conn.prepareStatement(sqlDetail)) {
