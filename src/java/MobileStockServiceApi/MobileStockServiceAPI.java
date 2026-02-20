@@ -521,6 +521,344 @@ public class MobileStockServiceAPI {
     }
 
     @GET
+    @Path("/getInventoryMaster")
+    public Response getInventoryMaster(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("search") String strSearch) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            String _where = "";
+            StringBuilder __where = new StringBuilder();
+            String _whereFinal = "";
+            if (strSearch.trim().length() > 0) {
+                String[] __fieldList = {"code", "name_1"};
+                String[] __keyword = strSearch.trim().split(" ");
+                for (int __field = 0; __field < __fieldList.length; __field++) {
+                    if (__keyword.length > 0) {
+                        if (__where.length() > 0) {
+                            __where.append(" or ");
+                        } else {
+                            __where.append("  ");
+                        }
+                        __where.append("(");
+                        for (int __loop = 0; __loop < __keyword.length; __loop++) {
+                            if (__loop > 0) {
+                                __where.append(" and ");
+                            }
+                            __where.append("upper(" + __fieldList[__field]
+                                    + ") like \'%"
+                                    + __keyword[__loop].toUpperCase() + "%\'");
+                        }
+                        __where.append(")");
+                        _where += " and " + __where.toString();
+                    }
+                }
+            }
+
+            _whereFinal = _where;
+            String __strQUERY1 = "select code,name_1,unit_standard from ic_inventory where 1=1 " + _whereFinal + " limit 100";
+
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+
+                obj.put("item_code", __rsHead.getString("code"));
+                obj.put("item_name", __rsHead.getString("name_1"));
+                obj.put("unit_standard", __rsHead.getString("unit_standard"));
+
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/getUnitMaster")
+    public Response getUnitMaster(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("itemcode") String strItemCode) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            String _where = "";
+            StringBuilder __where = new StringBuilder();
+            String _whereFinal = "";
+
+            _whereFinal = _where;
+            String __strQUERY1 = "select iuu.code,ic.name_1,stand_value,divide_value,ratio from ic_unit_use  iuu left join ic_unit ic on ic.code = iuu.code where iuu.ic_code = '" + strItemCode + "' limit 100";
+            System.out.println("__strQUERY1 " + __strQUERY1);
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+
+                obj.put("code", __rsHead.getString("code"));
+                obj.put("name", __rsHead.getString("name_1"));
+                obj.put("stand_value", __rsHead.getString("stand_value"));
+                obj.put("divide_value", __rsHead.getString("divide_value"));
+                obj.put("ratio", __rsHead.getString("ratio"));
+
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/getBarcodeMaster")
+    public Response getBarcodeMaster(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("itemcode") String strItemCode) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            String _where = "";
+            StringBuilder __where = new StringBuilder();
+            String _whereFinal = "";
+
+            _whereFinal = _where;
+            String __strQUERY1 = "select barcode,unit_code,price,price_member from ic_inventory_barcode where ic_code = '" + strItemCode + "' limit 100";
+
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+
+                obj.put("barcode", __rsHead.getString("barcode"));
+                obj.put("unit_code", __rsHead.getString("unit_code"));
+                obj.put("price", __rsHead.getString("price"));
+                obj.put("price_member", __rsHead.getString("price_member"));
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/checkBarcodeExists")
+    public Response checkBarcodeExists(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("barcode") String strBarcode) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+            __objResponse.put("existx", false);
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            String _where = "";
+            StringBuilder __where = new StringBuilder();
+            String _whereFinal = "";
+
+            _whereFinal = _where;
+            String __strQUERY1 = "select barcode,unit_code,price,price_member from ic_inventory_barcode where barcode = '" + strBarcode + "' limit 100";
+
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            __rsHead.next();
+            int row = __rsHead.getRow();
+            if (row > 0) {
+                __objResponse.put("existx", true);
+            } else {
+                __objResponse.put("existx", false);
+            }
+            __objResponse.put("success", true);
+
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @POST
+    @Path("/createNewBarcode")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response createNewBarcode(
+            @QueryParam("provider") String provider,
+            @QueryParam("dbname") String dbName,
+            String data) {
+
+        JSONObject response = new JSONObject();
+        Connection conn = null;
+
+        try {
+            // ---------- Parse JSON ----------
+            JSONObject req = new JSONObject(data);
+
+            String item_code = req.optString("item_code");
+            String item_name = req.optString("item_name");
+            String barcode = req.optString("barcode");
+            String unit_code = req.optString("unit_code");
+            String price_nm = req.optString("price");
+            String price_member = req.optString("price_member");
+
+            // ---------- Connect DB ----------
+            _routine routine = new _routine();
+            conn = routine._connect(dbName.toLowerCase(), _global.FILE_CONFIG(provider));
+            conn.setAutoCommit(false); // 🔥 START TRANSACTION
+
+            // ---------- Insert ic_trans ----------
+            String sqlTrans
+                    = "INSERT INTO ic_inventory_barcode (ic_code, barcode,description, unit_code, price, "
+                    + "price_member) "
+                    + "VALUES (?, ?, ?, ?, ?,?)";
+
+            try (PreparedStatement ps = conn.prepareStatement(sqlTrans)) {
+                ps.setString(1, item_code);
+                ps.setString(2, barcode);
+                ps.setString(3, item_name);
+                ps.setString(4, unit_code);
+                ps.setDouble(5, Double.parseDouble(price_nm));
+                ps.setDouble(6, Double.parseDouble(price_member));
+                ps.executeUpdate();
+            }
+
+            // ---------- COMMIT ----------
+            conn.commit();
+
+            response.put("success", true);
+            return Response.ok(response.toString()).build();
+
+        } catch (Exception e) {
+            try {
+                if (conn != null) {
+                    conn.rollback(); // 🔥 ROLLBACK
+                }
+            } catch (Exception ignore) {
+            }
+
+            return Response.status(400)
+                    .entity(new JSONObject()
+                            .put("success", false)
+                            .put("error", e.getMessage())
+                            .toString())
+                    .build();
+        } finally {
+            try {
+                if (conn != null) {
+                    conn.close();
+                }
+            } catch (Exception ignore) {
+            }
+        }
+    }
+
+    @POST
+    @Path("/updateBarcode")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response updateBarcode(
+            @QueryParam("provider") String provider,
+            @QueryParam("dbname") String dbName,
+            String data) {
+
+        JSONObject response = new JSONObject();
+        Connection conn = null;
+
+        try {
+            // ---------- Parse JSON ----------
+            JSONObject req = new JSONObject(data);
+
+            String barcode = req.optString("barcode");
+            String price_nm = req.optString("price");
+            String price_member = req.optString("price_member");
+
+            // ---------- Connect DB ----------
+            _routine routine = new _routine();
+            conn = routine._connect(dbName.toLowerCase(), _global.FILE_CONFIG(provider));
+            conn.setAutoCommit(false); // 🔥 START TRANSACTION
+
+            // ---------- Insert ic_trans ----------
+            String sqlTrans
+                    = "update ic_inventory_barcode set price=? , price_member=? where barcode = ?";
+
+            try (PreparedStatement ps = conn.prepareStatement(sqlTrans)) {
+                ps.setDouble(1, Double.parseDouble(price_nm));
+                ps.setDouble(2, Double.parseDouble(price_member));
+                ps.setString(3, barcode);
+                ps.executeUpdate();
+            }
+
+            // ---------- COMMIT ----------
+            conn.commit();
+
+            response.put("success", true);
+            return Response.ok(response.toString()).build();
+
+        } catch (Exception e) {
+            try {
+                if (conn != null) {
+                    conn.rollback(); // 🔥 ROLLBACK
+                }
+            } catch (Exception ignore) {
+            }
+
+            return Response.status(400)
+                    .entity(new JSONObject()
+                            .put("success", false)
+                            .put("error", e.getMessage())
+                            .toString())
+                    .build();
+        } finally {
+            try {
+                if (conn != null) {
+                    conn.close();
+                }
+            } catch (Exception ignore) {
+            }
+        }
+    }
+
+    @GET
     @Path("/getItemSearch")
     public Response getItemSearch(
             @QueryParam("provider") String strProvider,
