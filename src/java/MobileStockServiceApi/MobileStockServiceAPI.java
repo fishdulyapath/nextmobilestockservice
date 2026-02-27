@@ -70,7 +70,7 @@ public class MobileStockServiceAPI {
         try {
             _routine __routine = new _routine();
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
-            String __strQUERY1 = "SELECT code as user_code, name_1 as user_name FROM erp_user WHERE code=upper('" + strUserCode + "') AND password='" + strPassword + "' ORDER BY code";
+            String __strQUERY1 = "SELECT code as user_code, name_1 as user_name FROM erp_user WHERE upper(code)=upper('" + strUserCode + "') AND password='" + strPassword + "' ORDER BY code";
 
             Statement __stmt1;
             ResultSet __rs1;
@@ -1296,7 +1296,7 @@ public class MobileStockServiceAPI {
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
             String _where = "";
             if (!strBranchcode.equals("")) {
-                _where = "branch_code = '" + strBranchcode.toUpperCase() + "'";
+                _where = " and branch_code = '" + strBranchcode.toUpperCase() + "'";
             }
             String __strQUERY1 = "SELECT code,name_1 FROM ic_warehouse  where 1=1 " + _where + " ORDER BY code";
             System.out.println(__strQUERY1);
@@ -1560,17 +1560,13 @@ public class MobileStockServiceAPI {
                 _where = " where upper(code) like '%" + strSearch.toUpperCase() + "%' or upper(name_1) like '%" + strSearch.toUpperCase() + "%' ";
             }
 
-            String __strQUERY1 = "select code,name_1,coalesce((select doc_list from stc_permission where user_code = code),0) as doc_list, "
-                    + "coalesce((select doc_approve_list from stc_permission where user_code = code),0) as doc_approve_list, "
-                    + "coalesce((select doc_history_list from stc_permission where user_code = code),0) as doc_history_list, "
-                    + "coalesce((select cart_list from stc_permission where user_code = code),0) as cart_list, "
-                    + "coalesce((select cart_recount_list from stc_permission where user_code = code),0) as cart_recount_list, "
-                    + "coalesce((select report_stock_zero from stc_permission where user_code = code),0) as report_stock_zero, "
-                    + "coalesce((select report_stock_not_check from stc_permission where user_code = code),0) as report_stock_not_check, "
-                    + "coalesce((select report_stock_diff from stc_permission where user_code = code),0) as report_stock_diff, "
-                    + "coalesce((select report_stock_adjust from stc_permission where user_code = code),0) as report_stock_adjust, "
-                    + "coalesce((select tagcard_list from stc_permission where user_code = code),0) as tagcard_list, "
-                    + "coalesce((select tagcard_count from stc_permission where user_code = code),0) as tagcard_count "
+            String __strQUERY1 = "select code,name_1,"
+                    + "coalesce((select stock_list from msc_permission where user_code = code),0) as stock_list, "
+                    + "coalesce((select request_list from msc_permission where user_code = code),0) as request_list, "
+                    + "coalesce((select transfer_list from msc_permission where user_code = code),0) as transfer_list, "
+                    + "coalesce((select handheld_list from msc_permission where user_code = code),0) as handheld_list, "
+                    + "coalesce((select info_list from msc_permission where user_code = code),0) as info_list, "
+                    + "coalesce((select barcode_list from msc_permission where user_code = code),0) as barcode_list "
                     + "from erp_user " + _where;
             System.out.println("__strQUERY1 " + __strQUERY1);
             Statement __stmt1;
@@ -1585,17 +1581,12 @@ public class MobileStockServiceAPI {
 
                 obj.put("code", __rsHead.getString("code"));
                 obj.put("name_1", __rsHead.getString("name_1"));
-                obj.put("doc_list", __rsHead.getString("doc_list"));
-                obj.put("doc_approve_list", __rsHead.getString("doc_approve_list"));
-                obj.put("doc_history_list", __rsHead.getString("doc_history_list"));
-                obj.put("cart_list", __rsHead.getString("cart_list"));
-                obj.put("cart_recount_list", __rsHead.getString("cart_recount_list"));
-                obj.put("report_stock_zero", __rsHead.getString("report_stock_zero"));
-                obj.put("report_stock_not_check", __rsHead.getString("report_stock_not_check"));
-                obj.put("report_stock_diff", __rsHead.getString("report_stock_diff"));
-                obj.put("report_stock_adjust", __rsHead.getString("report_stock_adjust"));
-                obj.put("tagcard_list", __rsHead.getString("tagcard_list"));
-                obj.put("tagcard_count", __rsHead.getString("tagcard_count"));
+                obj.put("stock_list", __rsHead.getString("stock_list"));
+                obj.put("request_list", __rsHead.getString("request_list"));
+                obj.put("transfer_list", __rsHead.getString("transfer_list"));
+                obj.put("handheld_list", __rsHead.getString("handheld_list"));
+                obj.put("info_list", __rsHead.getString("info_list"));
+                obj.put("barcode_list", __rsHead.getString("barcode_list"));
                 jsarr.put(obj);
             }
 
@@ -1615,7 +1606,7 @@ public class MobileStockServiceAPI {
     public Response getErpUserPermissionLogin(
             @QueryParam("provider") String strProvider,
             @QueryParam("dbname") String strDatabaseName,
-            @QueryParam("search") String strSearch) {
+            @QueryParam("usercode") String strSearch) {
         JSONObject __objResponse = new JSONObject();
         __objResponse.put("success", false);
         try {
@@ -1628,17 +1619,13 @@ public class MobileStockServiceAPI {
                 _where = " where upper(code) = '" + strSearch.toUpperCase() + "' ";
             }
 
-            String __strQUERY1 = "select code,name_1,coalesce((select doc_list from stc_permission where user_code = code),0) as doc_list, "
-                    + "coalesce((select doc_approve_list from stc_permission where user_code = code),0) as doc_approve_list, "
-                    + "coalesce((select doc_history_list from stc_permission where user_code = code),0) as doc_history_list, "
-                    + "coalesce((select cart_list from stc_permission where user_code = code),0) as cart_list, "
-                    + "coalesce((select cart_recount_list from stc_permission where user_code = code),0) as cart_recount_list, "
-                    + "coalesce((select report_stock_zero from stc_permission where user_code = code),0) as report_stock_zero, "
-                    + "coalesce((select report_stock_not_check from stc_permission where user_code = code),0) as report_stock_not_check, "
-                    + "coalesce((select report_stock_diff from stc_permission where user_code = code),0) as report_stock_diff, "
-                    + "coalesce((select report_stock_adjust from stc_permission where user_code = code),0) as report_stock_adjust, "
-                    + "coalesce((select tagcard_list from stc_permission where user_code = code),0) as tagcard_list, "
-                    + "coalesce((select tagcard_count from stc_permission where user_code = code),0) as tagcard_count "
+            String __strQUERY1 = "select code,name_1,"
+                    + "coalesce((select stock_list from msc_permission where user_code = code),0) as stock_list, "
+                    + "coalesce((select request_list from msc_permission where user_code = code),0) as request_list, "
+                    + "coalesce((select transfer_list from msc_permission where user_code = code),0) as transfer_list, "
+                    + "coalesce((select handheld_list from msc_permission where user_code = code),0) as handheld_list, "
+                    + "coalesce((select info_list from msc_permission where user_code = code),0) as info_list, "
+                    + "coalesce((select barcode_list from msc_permission where user_code = code),0) as barcode_list "
                     + "from erp_user " + _where;
             System.out.println("__strQUERY1 " + __strQUERY1);
             Statement __stmt1;
@@ -1653,18 +1640,12 @@ public class MobileStockServiceAPI {
 
                 obj.put("code", __rsHead.getString("code"));
                 obj.put("name_1", __rsHead.getString("name_1"));
-                obj.put("doc_list", __rsHead.getString("doc_list"));
-                obj.put("doc_approve_list", __rsHead.getString("doc_approve_list"));
-                obj.put("doc_history_list", __rsHead.getString("doc_history_list"));
-                obj.put("cart_list", __rsHead.getString("cart_list"));
-                obj.put("cart_recount_list", __rsHead.getString("cart_recount_list"));
-
-                obj.put("report_stock_zero", __rsHead.getString("report_stock_zero"));
-                obj.put("report_stock_not_check", __rsHead.getString("report_stock_not_check"));
-                obj.put("report_stock_diff", __rsHead.getString("report_stock_diff"));
-                obj.put("report_stock_adjust", __rsHead.getString("report_stock_adjust"));
-                obj.put("tagcard_list", __rsHead.getString("tagcard_list"));
-                obj.put("tagcard_count", __rsHead.getString("tagcard_count"));
+                obj.put("stock_list", __rsHead.getString("stock_list"));
+                obj.put("request_list", __rsHead.getString("request_list"));
+                obj.put("transfer_list", __rsHead.getString("transfer_list"));
+                obj.put("handheld_list", __rsHead.getString("handheld_list"));
+                obj.put("info_list", __rsHead.getString("info_list"));
+                obj.put("barcode_list", __rsHead.getString("barcode_list"));
                 jsarr.put(obj);
             }
 
@@ -1685,17 +1666,12 @@ public class MobileStockServiceAPI {
             @QueryParam("provider") String strProvider,
             @QueryParam("dbname") String strDatabaseName,
             @QueryParam("user") String user_code,
-            @QueryParam("doc_list") String doc_list,
-            @QueryParam("doc_approve_list") String doc_approve_list,
-            @QueryParam("doc_history_list") String doc_history_list,
-            @QueryParam("cart_list") String cart_list,
-            @QueryParam("cart_recount_list") String cart_recount_list,
-            @QueryParam("report_stock_zero") String report_stock_zero,
-            @QueryParam("report_stock_not_check") String report_stock_not_check,
-            @QueryParam("report_stock_diff") String report_stock_diff,
-            @QueryParam("report_stock_adjust") String report_stock_adjust,
-            @QueryParam("tagcard_list") String tagcard_list,
-            @QueryParam("tagcard_count") String tagcard_count
+            @QueryParam("stock_list") String stock_list,
+            @QueryParam("request_list") String request_list,
+            @QueryParam("transfer_list") String transfer_list,
+            @QueryParam("handheld_list") String handheld_list,
+            @QueryParam("barcode_list") String barcode_list,
+            @QueryParam("info_list") String info_list
     ) throws Exception {
 
         JSONObject __objResponse = new JSONObject();
@@ -1713,7 +1689,7 @@ public class MobileStockServiceAPI {
             Statement __stmt1;
 
             __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
-            ResultSet __rsHead = __stmt1.executeQuery("select user_code from stc_permission where user_code = '" + user_code + "'");
+            ResultSet __rsHead = __stmt1.executeQuery("select user_code from msc_permission where user_code = '" + user_code + "'");
 
             __rsHead.next();
 
@@ -1721,10 +1697,10 @@ public class MobileStockServiceAPI {
 
             if (row > 0) {
                 Statement __stmtdelete = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
-                __stmtdelete.executeUpdate("delete from stc_permission where user_code = '" + user_code + "';");
+                __stmtdelete.executeUpdate("delete from msc_permission where user_code = '" + user_code + "';");
             }
 
-            __query_builder.append("INSERT INTO stc_permission (user_code,doc_list,doc_approve_list,doc_history_list,cart_list,cart_recount_list,report_stock_zero,report_stock_not_check,report_stock_diff,report_stock_adjust,tagcard_list,tagcard_count) values ('" + user_code + "','" + doc_list + "','" + doc_approve_list + "','" + doc_history_list + "','" + cart_list + "','" + cart_recount_list + "','" + report_stock_zero + "','" + report_stock_not_check + "','" + report_stock_diff + "','" + report_stock_adjust + "','" + tagcard_list + "','" + tagcard_count + "');");
+            __query_builder.append("INSERT INTO msc_permission (user_code,stock_list,request_list,transfer_list,handheld_list,barcode_list,info_list) values ('" + user_code + "','" + stock_list + "','" + request_list + "','" + transfer_list + "','" + handheld_list + "','" + barcode_list + "','" + info_list + "');");
 
             System.out.println("__query_builder" + __query_builder);
 
@@ -2925,8 +2901,8 @@ public class MobileStockServiceAPI {
             _routine __routine = new _routine();
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
 
-            String __strQUERY1 = "SELECT *,(select name_1 from ap_supplier where code=cust_code limit 1 ) as cust_name,(select name_1 from erp_user where code=creator_code limit 1 ) as creator_name,(select name_1 from ic_warehouse where code=wh_to limit 1 ) as to_wh_name,(select name_1 from ic_shelf where code=location_to and whcode=wh_to limit 1 ) as to_location_name,(select name_1 from ic_warehouse where code=wh_code limit 1 ) as wh_name,(select name_1 from ic_shelf where code=location_code and whcode=wh_code limit 1 ) as location_name,(select count(doc_no) from msc_cart_detail where msc_cart_detail.doc_no=msc_cart.doc_no) as item_count,carts FROM msc_cart where  is_merge = 0 and branch_code='" + strBranchcode + "' and trans_flag = '" + strTransFlag + "' ORDER BY create_datetime desc limit 200";
-
+            String __strQUERY1 = "SELECT *,(select name_1 from ap_supplier where code=cust_code limit 1 ) as cust_name,(select name_1 from erp_user where code=creator_code limit 1 ) as creator_name,(select name_1 from ic_warehouse where code=wh_to limit 1 ) as to_wh_name,(select name_1 from ic_shelf where code=location_to and whcode=wh_to limit 1 ) as to_location_name,(select name_1 from ic_warehouse where code=wh_code limit 1 ) as wh_name,(select name_1 from ic_shelf where code=location_code and whcode=wh_code limit 1 ) as location_name,(select count(doc_no) from msc_cart_detail where msc_cart_detail.doc_no=msc_cart.doc_no) as item_count,carts FROM msc_cart where  is_merge = 0 and branch_code='" + strBranchcode + "' and trans_flag = '" + strTransFlag + "' ORDER BY status asc,doc_date desc limit 200";
+            System.out.println("__strQUERY1 " + __strQUERY1);
             Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
             ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
             JSONArray jsarr = new JSONArray();
@@ -4261,7 +4237,8 @@ public class MobileStockServiceAPI {
             }
 
             String __strQUERYdetail = "insert into msc_cart_detail (doc_no,barcode,item_code,unit_code,wh_code,location_code,qty,balance_qty,diff_qty,is_approve,location,is_no_stock,line_number) "
-                    + "select '" + docno + "',barcode,item_code,unit_code,'" + whcode + "','" + locationcode + "',sum(qty) as qty,MAX(balance_qty) AS balance_qty,MAX(balance_qty) - SUM(qty) AS diff_qty,0,STRING_AGG(COALESCE(NULLIF(location, ''), NULL), ', ') AS location,min(is_no_stock),MAX(line_number) from msc_cart_detail where doc_no in (" + docNoIn + ") group by item_code,unit_code ";
+                    + "select '" + docno + "',barcode,item_code,unit_code,'" + whcode + "','" + locationcode + "',sum(qty) as qty,MAX(balance_qty) AS balance_qty,MAX(balance_qty) - SUM(qty) AS diff_qty,0,STRING_AGG(COALESCE(NULLIF(location, ''), NULL), ', ') AS location,min(is_no_stock),MAX(line_number) from msc_cart_detail where doc_no in (" + docNoIn + ") group by item_code,unit_code,barcode ";
+            System.out.println("__strQUERYdetail " + __strQUERYdetail);
             Statement __stmtdetail = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
             __stmtdetail.executeUpdate(__strQUERYdetail);
             __stmtdetail.close();
