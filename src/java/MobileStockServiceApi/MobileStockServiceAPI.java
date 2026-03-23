@@ -237,7 +237,21 @@ public class MobileStockServiceAPI {
             StringBuilder __where = new StringBuilder();
             String _whereFinal = "";
 
-            String __strQUERY1 = "select ic_code,unit_code,price_0,price_1,price_2,price_3,price_4,price_5,price_6,price_7,price_8,price_9,sale_type from ic_inventory_price_formula where ic_code = '" + strItemCode + "' ";
+            String __strQUERY1 = "SELECT \n"
+                    + "    ic_code,\n"
+                    + "    unit_code,\n"
+                    + "    COALESCE(NULLIF(price_0,''),'0') AS price_0,\n"
+                    + "    COALESCE(NULLIF(price_1,''),'0') AS price_1,\n"
+                    + "    COALESCE(NULLIF(price_2,''),'0') AS price_2,\n"
+                    + "    COALESCE(NULLIF(price_3,''),'0') AS price_3,\n"
+                    + "    COALESCE(NULLIF(price_4,''),'0') AS price_4,\n"
+                    + "    COALESCE(NULLIF(price_5,''),'0') AS price_5,\n"
+                    + "    COALESCE(NULLIF(price_6,''),'0') AS price_6,\n"
+                    + "    COALESCE(NULLIF(price_7,''),'0') AS price_7,\n"
+                    + "    COALESCE(NULLIF(price_8,''),'0') AS price_8,\n"
+                    + "    COALESCE(NULLIF(price_9,''),'0') AS price_9,\n"
+                    + "    sale_type "
+                    + "FROM ic_inventory_price_formula where ic_code = '" + strItemCode + "' ";
             System.out.println(__strQUERY1);
             Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
             ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
@@ -435,7 +449,7 @@ public class MobileStockServiceAPI {
             StringBuilder __where = new StringBuilder();
             String _whereFinal = "";
 
-            String __strQUERY1 = "select balance_qty,ic_unit_code,\n"
+            String __strQUERY1 = "select balance_qty,ic_unit_code,coalesce((select name_1 from ic_unit where ic_unit.code = ic_unit_code),'') as unit_name, \n"
                     + "                coalesce((SELECT ic_warehouse.name_1 FROM ic_warehouse WHERE ic_warehouse.code = sml_ic_function_stock_balance_warehouse_location.warehouse ),'') AS wh_name ,\n"
                     + "                coalesce((SELECT ic_shelf.name_1 FROM ic_shelf WHERE ic_shelf.code = sml_ic_function_stock_balance_warehouse_location.location and whcode = sml_ic_function_stock_balance_warehouse_location.warehouse ),'') AS sh_name \n"
                     + "                from sml_ic_function_stock_balance_warehouse_location('NOW()','" + strItemCode + "', '', '') ";
@@ -450,6 +464,7 @@ public class MobileStockServiceAPI {
                 obj.put("shelf_name", __rsHead.getString("sh_name"));
                 obj.put("balance_qty", String.format("%.2f", Float.parseFloat(__rsHead.getString("balance_qty"))));
                 obj.put("unit_code", __rsHead.getString("ic_unit_code"));
+                obj.put("unit_name", __rsHead.getString("unit_name"));
 
                 jsarr.put(obj);
             }
@@ -1566,7 +1581,8 @@ public class MobileStockServiceAPI {
                     + "coalesce((select transfer_list from msc_permission where user_code = code),0) as transfer_list, "
                     + "coalesce((select handheld_list from msc_permission where user_code = code),0) as handheld_list, "
                     + "coalesce((select info_list from msc_permission where user_code = code),0) as info_list, "
-                    + "coalesce((select barcode_list from msc_permission where user_code = code),0) as barcode_list "
+                    + "coalesce((select barcode_list from msc_permission where user_code = code),0) as barcode_list, "
+                    + "coalesce((select permission_list from msc_permission where user_code = code),0) as permission_list "
                     + "from erp_user " + _where;
             System.out.println("__strQUERY1 " + __strQUERY1);
             Statement __stmt1;
@@ -1587,6 +1603,7 @@ public class MobileStockServiceAPI {
                 obj.put("handheld_list", __rsHead.getString("handheld_list"));
                 obj.put("info_list", __rsHead.getString("info_list"));
                 obj.put("barcode_list", __rsHead.getString("barcode_list"));
+                obj.put("permission_list", __rsHead.getString("permission_list"));
                 jsarr.put(obj);
             }
 
@@ -1625,6 +1642,7 @@ public class MobileStockServiceAPI {
                     + "coalesce((select transfer_list from msc_permission where user_code = code),0) as transfer_list, "
                     + "coalesce((select handheld_list from msc_permission where user_code = code),0) as handheld_list, "
                     + "coalesce((select info_list from msc_permission where user_code = code),0) as info_list, "
+                    + "coalesce((select permission_list from msc_permission where user_code = code),0) as permission_list, "
                     + "coalesce((select barcode_list from msc_permission where user_code = code),0) as barcode_list "
                     + "from erp_user " + _where;
             System.out.println("__strQUERY1 " + __strQUERY1);
@@ -1646,6 +1664,7 @@ public class MobileStockServiceAPI {
                 obj.put("handheld_list", __rsHead.getString("handheld_list"));
                 obj.put("info_list", __rsHead.getString("info_list"));
                 obj.put("barcode_list", __rsHead.getString("barcode_list"));
+                obj.put("permission_list", __rsHead.getString("permission_list"));
                 jsarr.put(obj);
             }
 
@@ -1671,7 +1690,8 @@ public class MobileStockServiceAPI {
             @QueryParam("transfer_list") String transfer_list,
             @QueryParam("handheld_list") String handheld_list,
             @QueryParam("barcode_list") String barcode_list,
-            @QueryParam("info_list") String info_list
+            @QueryParam("info_list") String info_list,
+            @QueryParam("permission_list") String permission_list
     ) throws Exception {
 
         JSONObject __objResponse = new JSONObject();
@@ -1700,7 +1720,7 @@ public class MobileStockServiceAPI {
                 __stmtdelete.executeUpdate("delete from msc_permission where user_code = '" + user_code + "';");
             }
 
-            __query_builder.append("INSERT INTO msc_permission (user_code,stock_list,request_list,transfer_list,handheld_list,barcode_list,info_list) values ('" + user_code + "','" + stock_list + "','" + request_list + "','" + transfer_list + "','" + handheld_list + "','" + barcode_list + "','" + info_list + "');");
+            __query_builder.append("INSERT INTO msc_permission (user_code,stock_list,request_list,transfer_list,handheld_list,barcode_list,info_list,permission_list) values ('" + user_code + "','" + stock_list + "','" + request_list + "','" + transfer_list + "','" + handheld_list + "','" + barcode_list + "','" + info_list + "','" + permission_list + "');");
 
             System.out.println("__query_builder" + __query_builder);
 
