@@ -58,6 +58,27 @@ public class MobileStockServiceAPI {
         return txt != null && txt.trim().length() > 0 ? true : false;
     }
 
+    private void ensurePricePermissionTable(Connection conn) throws SQLException {
+        String query = "CREATE TABLE IF NOT EXISTS public.msc_price_permission ("
+                + "user_code character varying(255) NOT NULL,"
+                + "price_0 smallint NOT NULL DEFAULT 0,"
+                + "price_1 smallint NOT NULL DEFAULT 0,"
+                + "price_2 smallint NOT NULL DEFAULT 0,"
+                + "price_3 smallint NOT NULL DEFAULT 0,"
+                + "price_4 smallint NOT NULL DEFAULT 0,"
+                + "price_5 smallint NOT NULL DEFAULT 0,"
+                + "price_6 smallint NOT NULL DEFAULT 0,"
+                + "price_7 smallint NOT NULL DEFAULT 0,"
+                + "price_8 smallint NOT NULL DEFAULT 0,"
+                + "price_9 smallint NOT NULL DEFAULT 0,"
+                + "create_datetime timestamp without time zone DEFAULT timezone('Asia/Bangkok'::text, now()),"
+                + "CONSTRAINT msc_price_permission_pkey PRIMARY KEY (user_code)"
+                + ");";
+        Statement stmt = conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+        stmt.executeUpdate(query);
+        stmt.close();
+    }
+
     @GET
     @Path("/authentication")
     public Response Authentication(
@@ -1618,6 +1639,198 @@ public class MobileStockServiceAPI {
         return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
     }
 
+    @POST
+    @Path("/upDatePricePermission")
+    public Response upDatePricePermission(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("user") String user_code,
+            @QueryParam("price_0") String price_0,
+            @QueryParam("price_1") String price_1,
+            @QueryParam("price_2") String price_2,
+            @QueryParam("price_3") String price_3,
+            @QueryParam("price_4") String price_4,
+            @QueryParam("price_5") String price_5,
+            @QueryParam("price_6") String price_6,
+            @QueryParam("price_7") String price_7,
+            @QueryParam("price_8") String price_8,
+            @QueryParam("price_9") String price_9
+    ) throws Exception {
+
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            ensurePricePermissionTable(__conn);
+
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery("select user_code from msc_price_permission where user_code = '" + user_code + "'");
+
+            __rsHead.next();
+
+            int row = __rsHead.getRow();
+
+            if (row > 0) {
+                Statement __stmtdelete = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+                __stmtdelete.executeUpdate("delete from msc_price_permission where user_code = '" + user_code + "';");
+                __stmtdelete.close();
+            }
+
+            StringBuilder __query_builder = new StringBuilder();
+            __query_builder.append("INSERT INTO msc_price_permission (user_code,price_0,price_1,price_2,price_3,price_4,price_5,price_6,price_7,price_8,price_9) values ('"
+                    + user_code + "','" + price_0 + "','" + price_1 + "','" + price_2 + "','" + price_3 + "','" + price_4 + "','" + price_5 + "','" + price_6 + "','" + price_7 + "','" + price_8 + "','" + price_9 + "');");
+
+            System.out.println("__query_builder" + __query_builder);
+
+            Statement __stmt2 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            __stmt2.executeUpdate(__query_builder.toString());
+
+            __objResponse.put("msg", "success");
+            __objResponse.put("success", true);
+
+            __rsHead.close();
+            __stmt1.close();
+            __stmt2.close();
+            __conn.close();
+
+        } catch (JSONException ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(__objResponse.toString(), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/getErpUserPricePermission")
+    public Response getErpUserPricePermission(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("search") String strSearch) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            ensurePricePermissionTable(__conn);
+
+            String _where = "";
+            if (!strSearch.trim().equals("")) {
+                _where = " where upper(code) like '%" + strSearch.toUpperCase() + "%' or upper(name_1) like '%" + strSearch.toUpperCase() + "%' ";
+            }
+
+            String __strQUERY1 = "select code,name_1,"
+                    + "coalesce((select price_0 from msc_price_permission where user_code = code),0) as price_0, "
+                    + "coalesce((select price_1 from msc_price_permission where user_code = code),0) as price_1, "
+                    + "coalesce((select price_2 from msc_price_permission where user_code = code),0) as price_2, "
+                    + "coalesce((select price_3 from msc_price_permission where user_code = code),0) as price_3, "
+                    + "coalesce((select price_4 from msc_price_permission where user_code = code),0) as price_4, "
+                    + "coalesce((select price_5 from msc_price_permission where user_code = code),0) as price_5, "
+                    + "coalesce((select price_6 from msc_price_permission where user_code = code),0) as price_6, "
+                    + "coalesce((select price_7 from msc_price_permission where user_code = code),0) as price_7, "
+                    + "coalesce((select price_8 from msc_price_permission where user_code = code),0) as price_8, "
+                    + "coalesce((select price_9 from msc_price_permission where user_code = code),0) as price_9 "
+                    + "from erp_user " + _where + " order by code";
+            System.out.println("__strQUERY1 " + __strQUERY1);
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+
+                obj.put("code", __rsHead.getString("code"));
+                obj.put("name_1", __rsHead.getString("name_1"));
+                obj.put("price_0", __rsHead.getString("price_0"));
+                obj.put("price_1", __rsHead.getString("price_1"));
+                obj.put("price_2", __rsHead.getString("price_2"));
+                obj.put("price_3", __rsHead.getString("price_3"));
+                obj.put("price_4", __rsHead.getString("price_4"));
+                obj.put("price_5", __rsHead.getString("price_5"));
+                obj.put("price_6", __rsHead.getString("price_6"));
+                obj.put("price_7", __rsHead.getString("price_7"));
+                obj.put("price_8", __rsHead.getString("price_8"));
+                obj.put("price_9", __rsHead.getString("price_9"));
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/getErpUserPricePermissionLogin")
+    public Response getErpUserPricePermissionLogin(
+            @QueryParam("provider") String strProvider,
+            @QueryParam("dbname") String strDatabaseName,
+            @QueryParam("usercode") String strSearch) {
+        JSONObject __objResponse = new JSONObject();
+        __objResponse.put("success", false);
+        try {
+
+            _routine __routine = new _routine();
+            Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            ensurePricePermissionTable(__conn);
+
+            String _where = "";
+            if (!strSearch.trim().equals("")) {
+                _where = " where upper(code) = '" + strSearch.toUpperCase() + "' ";
+            }
+
+            String __strQUERY1 = "select code,name_1,"
+                    + "coalesce((select price_0 from msc_price_permission where user_code = code),0) as price_0, "
+                    + "coalesce((select price_1 from msc_price_permission where user_code = code),0) as price_1, "
+                    + "coalesce((select price_2 from msc_price_permission where user_code = code),0) as price_2, "
+                    + "coalesce((select price_3 from msc_price_permission where user_code = code),0) as price_3, "
+                    + "coalesce((select price_4 from msc_price_permission where user_code = code),0) as price_4, "
+                    + "coalesce((select price_5 from msc_price_permission where user_code = code),0) as price_5, "
+                    + "coalesce((select price_6 from msc_price_permission where user_code = code),0) as price_6, "
+                    + "coalesce((select price_7 from msc_price_permission where user_code = code),0) as price_7, "
+                    + "coalesce((select price_8 from msc_price_permission where user_code = code),0) as price_8, "
+                    + "coalesce((select price_9 from msc_price_permission where user_code = code),0) as price_9 "
+                    + "from erp_user " + _where;
+            System.out.println("__strQUERY1 " + __strQUERY1);
+            Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+            ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
+            JSONArray jsarr = new JSONArray();
+            while (__rsHead.next()) {
+
+                JSONObject obj = new JSONObject();
+
+                obj.put("code", __rsHead.getString("code"));
+                obj.put("name_1", __rsHead.getString("name_1"));
+                obj.put("price_0", __rsHead.getString("price_0"));
+                obj.put("price_1", __rsHead.getString("price_1"));
+                obj.put("price_2", __rsHead.getString("price_2"));
+                obj.put("price_3", __rsHead.getString("price_3"));
+                obj.put("price_4", __rsHead.getString("price_4"));
+                obj.put("price_5", __rsHead.getString("price_5"));
+                obj.put("price_6", __rsHead.getString("price_6"));
+                obj.put("price_7", __rsHead.getString("price_7"));
+                obj.put("price_8", __rsHead.getString("price_8"));
+                obj.put("price_9", __rsHead.getString("price_9"));
+                jsarr.put(obj);
+            }
+
+            __objResponse.put("success", true);
+            __objResponse.put("data", jsarr);
+            __rsHead.close();
+            __stmt1.close();
+            __conn.close();
+        } catch (Exception ex) {
+            return Response.status(400).entity("{ERROR: " + ex.getMessage() + "}").build();
+        }
+        return Response.ok(String.valueOf(__objResponse), MediaType.APPLICATION_JSON).build();
+    }
+
     @GET
     @Path("/getErpUserPermissionLogin")
     public Response getErpUserPermissionLogin(
@@ -1800,13 +2013,13 @@ public class MobileStockServiceAPI {
                     + "trans_flag, trans_type, calc_flag, doc_no, doc_date, doc_time, "
                     + "doc_date_calc, doc_time_calc, last_status, line_number, ratio, "
                     + "stand_value, divide_value, item_code, item_name, unit_code, qty, "
-                    + "wh_code, shelf_code, price, sum_amount, branch_code"
+                    + "wh_code, shelf_code, price, sum_amount, branch_code,barcode"
                     + ") VALUES ("
                     + "76, 3, 1, ?, ?, ?, ?, ?, 0, ?, "
                     + "(SELECT ratio FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT stand_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT divide_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
-                    + "?, ?, ?, ?, ?, ?, 0, 0, ?"
+                    + "?, ?, ?, ?, ?, ?, 0, 0, ?,?"
                     + ")";
 
             try (PreparedStatement ps = conn.prepareStatement(sqlDetail)) {
@@ -1834,7 +2047,7 @@ public class MobileStockServiceAPI {
                     ps.setString(17, whcode);
                     ps.setString(18, locationcode);
                     ps.setString(19, branchcode);
-
+                    ps.setString(20, d.getString("barcode"));
                     ps.addBatch();
                 }
                 ps.executeBatch();
@@ -2074,13 +2287,13 @@ public class MobileStockServiceAPI {
                     + "trans_flag, trans_type, calc_flag, doc_no, doc_date, doc_time, "
                     + "doc_date_calc, doc_time_calc, last_status, line_number, ratio, "
                     + "stand_value, divide_value, item_code, item_name, unit_code, qty, "
-                    + "wh_code, shelf_code, price, sum_amount, branch_code,wh_code_2, shelf_code_2"
+                    + "wh_code, shelf_code, price, sum_amount, branch_code,wh_code_2, shelf_code_2,barcode"
                     + ") VALUES ("
                     + "124, 3, 0, ?, ?, ?, ?, ?, 0, ?, "
                     + "(SELECT ratio FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT stand_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT divide_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
-                    + "?, ?, ?, ?, ?, ?, 0, 0, ?,?,?"
+                    + "?, ?, ?, ?, ?, ?, 0, 0, ?,?,?,?"
                     + ")";
 
             try (PreparedStatement ps = conn.prepareStatement(sqlDetail)) {
@@ -2110,7 +2323,7 @@ public class MobileStockServiceAPI {
                     ps.setString(19, branchcode);
                     ps.setString(20, towhcode);
                     ps.setString(21, tolocationcode);
-
+                    ps.setString(22, d.getString("barcode"));
                     ps.addBatch();
                 }
                 ps.executeBatch();
@@ -2251,13 +2464,13 @@ public class MobileStockServiceAPI {
                     + "trans_flag, trans_type, calc_flag, doc_no, doc_date, doc_time, "
                     + "doc_date_calc, doc_time_calc, last_status, line_number, ratio, "
                     + "stand_value, divide_value, item_code, item_name, unit_code, qty, "
-                    + "wh_code, shelf_code, price, sum_amount, branch_code , wh_code_2, shelf_code_2"
+                    + "wh_code, shelf_code, price, sum_amount, branch_code , wh_code_2, shelf_code_2,barcode"
                     + ") VALUES ("
                     + "72, 3, -1, ?, ?, ?, ?, ?, 0, ?, "
                     + "(SELECT ratio FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT stand_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT divide_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
-                    + "?, ?, ?, ?, ?, ?, 0, 0, ?,?,?"
+                    + "?, ?, ?, ?, ?, ?, 0, 0, ?,?,?,?"
                     + ")";
 
             try (PreparedStatement ps = conn.prepareStatement(sqlDetail)) {
@@ -2287,6 +2500,7 @@ public class MobileStockServiceAPI {
                     ps.setString(19, branchcode);
                     ps.setString(20, towhcode);
                     ps.setString(21, tolocationcode);
+                    ps.setString(22, d.getString("barcode"));
                     ps.addBatch();
                 }
                 ps.executeBatch();
@@ -2452,13 +2666,13 @@ public class MobileStockServiceAPI {
                     + "trans_flag, trans_type, calc_flag, doc_no, doc_date, doc_time, "
                     + "doc_date_calc, doc_time_calc, last_status, line_number, ratio, "
                     + "stand_value, divide_value, item_code, item_name, unit_code, qty, "
-                    + "wh_code, shelf_code, price, sum_amount, branch_code"
+                    + "wh_code, shelf_code, price, sum_amount, branch_code,barcode"
                     + ") VALUES ("
                     + "310, 1, 1, ?, ?, ?, ?, ?, 0, ?, "
                     + "(SELECT ratio FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT stand_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
                     + "(SELECT divide_value FROM ic_unit_use WHERE code=? AND ic_code=? LIMIT 1), "
-                    + "?, ?, ?, ?, ?, ?, 0, 0, ?"
+                    + "?, ?, ?, ?, ?, ?, 0, 0, ?,?"
                     + ")";
 
             try (PreparedStatement ps = conn.prepareStatement(sqlDetail)) {
@@ -2486,7 +2700,7 @@ public class MobileStockServiceAPI {
                     ps.setString(17, whcode);
                     ps.setString(18, locationcode);
                     ps.setString(19, branchcode);
-
+                    ps.setString(20, d.getString("barcode"));
                     ps.addBatch();
                 }
                 ps.executeBatch();
