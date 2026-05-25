@@ -1994,7 +1994,7 @@ public class MobileStockServiceAPI {
             String sqlTrans
                     = "INSERT INTO ic_trans (trans_flag, trans_type, doc_no, doc_date, doc_time, "
                     + "doc_ref, doc_ref_date, total_amount, doc_format_code, remark, branch_code) "
-                    + "VALUES (76, 3, ?, ?, ?, ?, ?, 0, '', ?, ?)";
+                    + "VALUES (76, 3, ?, ?, ?, ?, ?, 0, 'CO', ?, ?)";
 
             try (PreparedStatement ps = conn.prepareStatement(sqlTrans)) {
                 ps.setString(1, docref);
