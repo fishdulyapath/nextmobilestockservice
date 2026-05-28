@@ -2000,7 +2000,7 @@ public class MobileStockServiceAPI {
                 ps.setString(1, docref);
                 ps.setDate(2, java.sql.Date.valueOf(docdate));
                 ps.setString(3, doctime);
-                ps.setString(4, docref);
+                ps.setString(4, docno);
                 ps.setDate(5, java.sql.Date.valueOf(docdate));
                 ps.setString(6, remark);
                 ps.setString(7, branchcode);
@@ -3127,7 +3127,8 @@ public class MobileStockServiceAPI {
             @QueryParam("provider") String strProvider,
             @QueryParam("dbname") String strDatabaseName,
             @QueryParam("branchcode") String strBranchcode,
-            @QueryParam("transflag") String strTransFlag) {
+            @QueryParam("transflag") String strTransFlag,
+            @QueryParam("search") String strSearch) {
         JSONObject __objResponse = new JSONObject();
         __objResponse.put("success", false);
         try {
@@ -3135,7 +3136,16 @@ public class MobileStockServiceAPI {
             _routine __routine = new _routine();
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
 
-            String __strQUERY1 = "SELECT *,(select name_1 from ap_supplier where code=cust_code limit 1 ) as cust_name,(select name_1 from erp_user where code=creator_code limit 1 ) as creator_name,(select name_1 from ic_warehouse where code=wh_to limit 1 ) as to_wh_name,(select name_1 from ic_shelf where code=location_to and whcode=wh_to limit 1 ) as to_location_name,(select name_1 from ic_warehouse where code=wh_code limit 1 ) as wh_name,(select name_1 from ic_shelf where code=location_code and whcode=wh_code limit 1 ) as location_name,(select count(doc_no) from msc_cart_detail where msc_cart_detail.doc_no=msc_cart.doc_no) as item_count,carts FROM msc_cart where  is_merge = 0 and branch_code='" + strBranchcode + "' and trans_flag = '" + strTransFlag + "' ORDER BY status asc,doc_date desc,doc_time desc limit 200";
+            String strSearchSafe = strSearch == null ? "" : strSearch.trim().replace("'", "''");
+            String strSearchWhere = "";
+            if (strSearchSafe.length() > 0) {
+                strSearchWhere = " and (upper(doc_no) like upper('%" + strSearchSafe + "%')"
+                        + " or upper(coalesce(remark,'')) like upper('%" + strSearchSafe + "%')"
+                        + " or upper(creator_code) like upper('%" + strSearchSafe + "%')"
+                        + " or upper((select name_1 from erp_user where code=creator_code limit 1)) like upper('%" + strSearchSafe + "%'))";
+            }
+
+            String __strQUERY1 = "SELECT *,(select name_1 from ap_supplier where code=cust_code limit 1 ) as cust_name,(select name_1 from erp_user where code=creator_code limit 1 ) as creator_name,(select name_1 from ic_warehouse where code=wh_to limit 1 ) as to_wh_name,(select name_1 from ic_shelf where code=location_to and whcode=wh_to limit 1 ) as to_location_name,(select name_1 from ic_warehouse where code=wh_code limit 1 ) as wh_name,(select name_1 from ic_shelf where code=location_code and whcode=wh_code limit 1 ) as location_name,(select count(doc_no) from msc_cart_detail where msc_cart_detail.doc_no=msc_cart.doc_no) as item_count,carts FROM msc_cart where  is_merge = 0 and branch_code='" + strBranchcode + "' and trans_flag = '" + strTransFlag + "' " + strSearchWhere + " ORDER BY status asc,doc_date desc,doc_time desc limit 200";
             System.out.println("__strQUERY1 " + __strQUERY1);
             Statement __stmt1 = __conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
             ResultSet __rsHead = __stmt1.executeQuery(__strQUERY1);
