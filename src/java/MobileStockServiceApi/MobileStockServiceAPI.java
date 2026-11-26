@@ -15,6 +15,8 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -56,6 +58,33 @@ public class MobileStockServiceAPI {
 
     private static boolean isNotNull(String txt) {
         return txt != null && txt.trim().length() > 0 ? true : false;
+    }
+
+    private void ensureProductInfoPermissionColumn(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS public.msc_permission ("
+                    + "user_code varchar(255) PRIMARY KEY,"
+                    + "stock_list smallint NOT NULL DEFAULT 0,"
+                    + "request_list smallint NOT NULL DEFAULT 0,"
+                    + "transfer_list smallint NOT NULL DEFAULT 0,"
+                    + "handheld_list smallint NOT NULL DEFAULT 0,"
+                    + "barcode_list smallint NOT NULL DEFAULT 0,"
+                    + "info_list smallint NOT NULL DEFAULT 0,"
+                    + "permission_list smallint NOT NULL DEFAULT 0,"
+                    + "product_info_list smallint NOT NULL DEFAULT 0)");
+            stmt.executeUpdate("ALTER TABLE msc_permission ADD COLUMN IF NOT EXISTS product_info_list smallint NOT NULL DEFAULT 0");
+        }
+    }
+
+    private boolean canViewProductInfo(Connection conn, String userCode) throws SQLException {
+        if (userCode == null || userCode.trim().isEmpty()) return false;
+        ensureProductInfoPermissionColumn(conn);
+        String sql = "SELECT 1 FROM erp_user u LEFT JOIN msc_permission p ON upper(p.user_code)=upper(u.code) "
+                + "WHERE upper(u.code)=upper(?) AND (upper(u.code)='SUPERADMIN' OR COALESCE(p.product_info_list,0)=1) LIMIT 1";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, userCode.trim());
+            try (ResultSet rs = stmt.executeQuery()) { return rs.next(); }
+        }
     }
 
     private void ensurePricePermissionTable(Connection conn) throws SQLException {
@@ -1031,6 +1060,301 @@ public class MobileStockServiceAPI {
     }
 
     @GET
+    @Path("/getCustomerList")
+    public Response getCustomerList(@QueryParam("provider") String provider,
+            @QueryParam("dbname") String database, @QueryParam("search") String search,
+            @QueryParam("usercode") String userCode) {
+        try (Connection conn = new _routine()._connect(database.toLowerCase(), _global.FILE_CONFIG(provider));
+                PreparedStatement stmt = conn.prepareStatement("SELECT code,name_1 FROM ar_customer WHERE code ILIKE ? OR name_1 ILIKE ? ORDER BY code LIMIT 50")) {
+            String term = "%" + (search == null ? "" : search.trim()) + "%";
+            if (!canViewProductInfo(conn, userCode)) return Response.status(403).entity("{\"ERROR\":\"Permission denied\"}").build();
+            stmt.setString(1, term);
+            stmt.setString(2, term);
+            JSONArray rows = new JSONArray();
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    rows.put(new JSONObject().put("code", rs.getString(1)).put("name", rs.getString(2)));
+                }
+            }
+            return Response.ok(new JSONObject().put("success", true).put("data", rows).toString(), MediaType.APPLICATION_JSON).build();
+        } catch (Exception ex) {
+            return Response.status(400).entity(new JSONObject().put("ERROR", ex.getMessage()).toString()).build();
+        }
+    }
+
+    static String[] productInfoSearchTerms(String search) {
+        if (search == null || search.trim().isEmpty()) return new String[0];
+        return search.trim().split("\\s+");
+    }
+
+    static String productInfoItemsSearchClause(int termCount) {
+        StringBuilder clause = new StringBuilder();
+        for (int index = 0; index < termCount; index++) {
+            clause.append(" AND (i.code ILIKE ? OR i.name_1 ILIKE ? OR i.name_2 ILIKE ? ")
+                    .append("OR i.name_eng_1 ILIKE ? OR i.name_eng_2 ILIKE ? ")
+                    .append("OR EXISTS (SELECT 1 FROM ic_inventory_barcode b ")
+                    .append("WHERE b.ic_code=i.code AND b.barcode ILIKE ?))");
+        }
+        return clause.toString();
+    }
+
+    @GET
+    @Path("/getProductInfoItems")
+    public Response getProductInfoItems(@QueryParam("provider") String provider,
+            @QueryParam("dbname") String database, @QueryParam("search") String search,
+            @QueryParam("usercode") String userCode) {
+        String[] terms = productInfoSearchTerms(search);
+        String sql = "SELECT i.code,i.name_1,i.unit_standard AS unit_code,"
+                + "i.item_category,COALESCE(i.balance_qty,0)/"
+                + "COALESCE(NULLIF(i.unit_standard_stand_value,0),1)*"
+                + "COALESCE(NULLIF(i.unit_standard_divide_value,0),1) AS stock_qty, "
+                + "(SELECT COALESCE(json_agg(json_build_object('unit_code',u.code,'stock_qty',"
+                + "COALESCE(i.balance_qty,0)/COALESCE(NULLIF(u.stand_value,0),1)*"
+                + "COALESCE(NULLIF(u.divide_value,0),1)) "
+                + "ORDER BY CASE WHEN u.code=i.unit_standard THEN 0 ELSE 1 END,u.code),'[]'::json) "
+                + "FROM ic_unit_use u WHERE u.ic_code=i.code) AS units "
+                + "FROM ic_inventory i WHERE 1=1"
+                + productInfoItemsSearchClause(terms.length)
+                + " ORDER BY i.code LIMIT 50";
+        try (Connection conn = new _routine()._connect(database.toLowerCase(), _global.FILE_CONFIG(provider));
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            if (!canViewProductInfo(conn, userCode)) return Response.status(403).entity("{\"ERROR\":\"Permission denied\"}").build();
+            int parameter = 1;
+            for (String term : terms) {
+                String pattern = "%" + term + "%";
+                for (int index = 0; index < 6; index++) stmt.setString(parameter++, pattern);
+            }
+            JSONArray rows = new JSONArray();
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    JSONArray units = new JSONArray(rs.getString("units"));
+                    boolean hasStandard = false;
+                    for (int index = 0; index < units.length(); index++) {
+                        if (rs.getString("unit_code").equals(units.getJSONObject(index).getString("unit_code"))) {
+                            hasStandard = true;
+                            break;
+                        }
+                    }
+                    if (!hasStandard) {
+                        JSONArray withStandard = new JSONArray();
+                        withStandard.put(new JSONObject().put("unit_code", rs.getString("unit_code"))
+                                .put("stock_qty", rs.getBigDecimal("stock_qty")));
+                        for (int index = 0; index < units.length(); index++) withStandard.put(units.get(index));
+                        units = withStandard;
+                    }
+                    rows.put(new JSONObject().put("item_code", rs.getString("code"))
+                            .put("item_name", rs.getString("name_1"))
+                            .put("unit_code", rs.getString("unit_code"))
+                            .put("item_category", rs.getString("item_category"))
+                            .put("stock_qty", rs.getBigDecimal("stock_qty"))
+                            .put("units", units));
+                }
+            }
+            return Response.ok(new JSONObject().put("success", true).put("data", rows).toString(), MediaType.APPLICATION_JSON).build();
+        } catch (Exception ex) {
+            return Response.status(400).entity(new JSONObject().put("ERROR", ex.getMessage()).toString()).build();
+        }
+    }
+
+    @GET
+    @Path("/getProductInfoReport")
+    public Response getProductInfoReport(@QueryParam("provider") String provider,
+            @QueryParam("dbname") String database, @QueryParam("itemcode") String itemCode,
+            @QueryParam("month") String month, @QueryParam("unitcode") String unitCode,
+            @QueryParam("usercode") String userCode, @QueryParam("custcode") String customerCode) {
+        try {
+            // Keep accepting month for older clients, but this report always describes today.
+            LocalDate asOf = ProductInfoReport.today(java.time.Clock.systemUTC());
+            YearMonth selected = YearMonth.from(asOf);
+            String customer = customerCode == null ? "" : customerCode.trim();
+            if (itemCode == null || itemCode.trim().isEmpty()) {
+                return Response.status(400).entity("{\"ERROR\":\"Invalid item\"}").build();
+            }
+            try (Connection conn = new _routine()._connect(database.toLowerCase(), _global.FILE_CONFIG(provider));
+                    PreparedStatement itemStmt = conn.prepareStatement("SELECT name_1,unit_standard,item_category,COALESCE(NULLIF(unit_standard_stand_value,0),1)/COALESCE(NULLIF(unit_standard_divide_value,0),1) AS ratio FROM ic_inventory WHERE code=?")) {
+                itemStmt.setString(1, itemCode);
+                if (!canViewProductInfo(conn, userCode)) return Response.status(403).entity("{\"ERROR\":\"Permission denied\"}").build();
+                try (ResultSet item = itemStmt.executeQuery()) {
+                    if (!item.next()) return Response.status(404).entity("{\"ERROR\":\"Item not found\"}").build();
+                    String reportUnit = unitCode == null || unitCode.trim().isEmpty()
+                            ? item.getString("unit_standard") : unitCode.trim();
+                    BigDecimal ratio = item.getBigDecimal("ratio");
+                    if (ratio == null || ratio.signum() == 0) ratio = BigDecimal.ONE;
+                    if (!reportUnit.equals(item.getString("unit_standard"))) {
+                        try (PreparedStatement unitStmt = conn.prepareStatement(
+                                "SELECT COALESCE(NULLIF(stand_value,0),1)/COALESCE(NULLIF(divide_value,0),1) AS ratio "
+                                + "FROM ic_unit_use WHERE ic_code=? AND code=? LIMIT 1")) {
+                            unitStmt.setString(1, itemCode);
+                            unitStmt.setString(2, reportUnit);
+                            try (ResultSet unit = unitStmt.executeQuery()) {
+                                if (!unit.next()) return Response.status(400).entity("{\"ERROR\":\"Invalid unit\"}").build();
+                                ratio = unit.getBigDecimal("ratio");
+                            }
+                        }
+                    }
+                    JSONObject report = new JSONObject().put("item_code", itemCode)
+                            .put("item_name", item.getString("name_1"))
+                            .put("unit_code", reportUnit)
+                            .put("month", selected.toString())
+                            .put("previous_month", selected.minusMonths(1).toString())
+                            .put("as_of_date", asOf.toString()).put("cust_code", customer);
+                    ProductInfoReport.populate(conn, report, itemCode, item.getString("unit_standard"),
+                            ratio, customer, asOf);
+                    return Response.ok(new JSONObject().put("success", true).put("data", report).toString(), MediaType.APPLICATION_JSON).build();
+                }
+            }
+        } catch (Exception ex) {
+            return Response.status(400).entity(new JSONObject().put("ERROR", ex.getMessage()).toString()).build();
+        }
+    }
+
+    private BigDecimal productInfoFormulaPrice(BigDecimal base, String formula) {
+        if (formula == null || formula.trim().isEmpty()) return base;
+        String expression = formula.trim();
+        char operator = expression.charAt(0);
+        String firstPart = expression.split(",", 2)[0];
+        try {
+            if (operator == '=') return new BigDecimal(firstPart.substring(1));
+            if (operator == '+') return base.add(new BigDecimal(firstPart.substring(1)));
+            if (operator == '-') return base.subtract(new BigDecimal(firstPart.substring(1)));
+            return new BigDecimal(expression);
+        } catch (NumberFormatException ex) {
+            return base;
+        }
+    }
+
+    @GET
+    @Path("/getCustomerItemPrice")
+    public Response getCustomerItemPrice(@QueryParam("provider") String provider,
+            @QueryParam("dbname") String database, @QueryParam("itemcode") String itemCode,
+            @QueryParam("unitcode") String unitCode, @QueryParam("custcode") String customerCode,
+            @QueryParam("sale_type") Integer saleTypeOverride,
+            @QueryParam("vat_type") Integer vatTypeOverride,
+            @QueryParam("usercode") String userCode) {
+        if (itemCode == null || itemCode.trim().isEmpty() || unitCode == null || unitCode.trim().isEmpty()) {
+            return Response.status(400).entity("{\"ERROR\":\"Item and unit are required\"}").build();
+        }
+        if ((saleTypeOverride != null && (saleTypeOverride < 0 || saleTypeOverride > 2))
+                || (vatTypeOverride != null && (vatTypeOverride < 0 || vatTypeOverride > 3))) {
+            return Response.status(400).entity("{\"ERROR\":\"Invalid sale or VAT type\"}").build();
+        }
+        String customer = customerCode == null ? "" : customerCode.trim();
+        try (Connection conn = new _routine()._connect(database.toLowerCase(), _global.FILE_CONFIG(provider))) {
+            if (!canViewProductInfo(conn, userCode)) return Response.status(403).entity("{\"ERROR\":\"Permission denied\"}").build();
+            int vatType = 0;
+            int saleType = 0;
+            BigDecimal vatRate = null;
+            if (!customer.isEmpty()) {
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT COALESCE(inquiry_type,0),COALESCE(vat_type,0),COALESCE(vat_rate,0) "
+                        + "FROM pos_basket WHERE cust_code=? ORDER BY basket_id DESC LIMIT 1")) {
+                    stmt.setString(1, customer);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            saleType = rs.getInt(1);
+                            vatType = rs.getInt(2);
+                            vatRate = rs.getBigDecimal(3);
+                        }
+                    }
+                } catch (SQLException ignored) { }
+            }
+            if (saleTypeOverride != null) saleType = saleTypeOverride;
+            if (vatTypeOverride != null) vatType = vatTypeOverride;
+            String saleTypes = saleType == 1 ? "(0,1)" : "(0,2)";
+            String formulaSaleTypes = saleType == 2 ? "(0)" : saleTypes;
+            String formulaTaxTypes = vatType == 0 ? "(0,1)" : vatType == 1 ? "(0,2)" : "(0,3)";
+            String priceSql = "SELECT p.sale_price1,p.sale_price2,p.price_type FROM ic_inventory_price p "
+                    + "WHERE p.ic_code=? AND p.unit_code=? AND CURRENT_DATE BETWEEN p.from_date AND p.to_date "
+                    + "AND 1 BETWEEN p.from_qty AND p.to_qty AND p.sale_type IN " + saleTypes + " "
+                    + "AND ((p.price_type=3 AND p.cust_code=?) OR (p.price_type=2 AND p.cust_group_1="
+                    + "(SELECT group_main FROM ar_customer_detail WHERE ar_code=?) AND "
+                    + "(COALESCE(p.cust_group_2,'')='' OR p.cust_group_2 IN "
+                    + "(SELECT group_sub_1 FROM ar_customer_detail WHERE ar_code=? UNION SELECT group_sub_3 FROM ar_customer_detail WHERE ar_code=? "
+                    + "UNION SELECT group_sub_4 FROM ar_customer_detail WHERE ar_code=?))) "
+                    + "OR (p.price_type=1 AND p.price_mode IN (0,1))) "
+                    + "ORDER BY CASE p.price_type WHEN 3 THEN 0 WHEN 2 THEN 1 ELSE 2 END,"
+                    + "p.price_mode DESC,p.sale_type DESC,p.transport_type DESC,p.cust_group_2 LIMIT 1";
+            BigDecimal price = null;
+            String source = "";
+            boolean foundPrice = false;
+            try (PreparedStatement stmt = conn.prepareStatement(priceSql)) {
+                stmt.setString(1, itemCode); stmt.setString(2, unitCode);
+                for (int index = 3; index <= 7; index++) stmt.setString(index, customer);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        foundPrice = true;
+                        price = rs.getBigDecimal(vatType == 0 ? "sale_price1" : "sale_price2");
+                        source = "price_" + rs.getInt("price_type");
+                    }
+                }
+            }
+            if (!foundPrice) {
+                String formulaSql = "SELECT price_0,price_1,price_2,price_3,price_4,price_5,price_6,price_7,price_8,price_9 "
+                        + "FROM ic_inventory_price_formula WHERE ic_code=? AND unit_code=? AND sale_type IN " + formulaSaleTypes + " "
+                        + "AND COALESCE(tax_type,0) IN " + formulaTaxTypes + " "
+                        + "ORDER BY sale_type DESC LIMIT 1";
+                int level = 0;
+                if (!customer.isEmpty()) {
+                    try (PreparedStatement stmt = conn.prepareStatement("SELECT COALESCE(price_level,0) FROM ar_customer WHERE code=?")) {
+                        stmt.setString(1, customer);
+                        try (ResultSet rs = stmt.executeQuery()) { if (rs.next()) level = rs.getInt(1); }
+                    }
+                }
+                try (PreparedStatement stmt = conn.prepareStatement(formulaSql)) {
+                    stmt.setString(1, itemCode); stmt.setString(2, unitCode);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            foundPrice = true;
+                            String baseText = rs.getString("price_0");
+                            if (baseText != null && !baseText.trim().isEmpty()) {
+                                try {
+                                    BigDecimal base = new BigDecimal(baseText);
+                                    String formula = level >= 1 && level <= 9 ? rs.getString("price_" + level) : baseText;
+                                    price = productInfoFormulaPrice(base, formula == null || formula.isEmpty() ? baseText : formula);
+                                    source = "formula";
+                                } catch (NumberFormatException ignored) { }
+                            }
+                        }
+                    }
+                }
+            }
+            if (!foundPrice) {
+                int lastPriceType = 0;
+                try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT COALESCE(get_last_price_type,0) FROM erp_option LIMIT 1")) {
+                    if (rs.next()) lastPriceType = rs.getInt(1);
+                }
+                if (lastPriceType == 1 || lastPriceType == 2) {
+                    String lastSql = lastPriceType == 1
+                            ? "SELECT price_exclude_vat,price,(SELECT vat_type FROM ic_trans WHERE ic_trans.doc_no=ic_trans_detail.doc_no AND ic_trans.trans_flag=ic_trans_detail.trans_flag) AS vat_type FROM ic_trans_detail WHERE cust_code=? AND item_code=? AND unit_code=? AND trans_flag=44 AND last_status=0 AND price_exclude_vat>0 ORDER BY doc_date DESC,doc_time DESC LIMIT 1"
+                            : "SELECT AVG(price_exclude_vat) FROM ic_trans_detail WHERE cust_code=? AND item_code=? AND unit_code=? AND trans_flag=44 AND last_status=0 AND price_exclude_vat>0";
+                    try (PreparedStatement stmt = conn.prepareStatement(lastSql)) {
+                        stmt.setString(1, customer); stmt.setString(2, itemCode); stmt.setString(3, unitCode);
+                        try (ResultSet rs = stmt.executeQuery()) {
+                            if (rs.next()) {
+                                price = rs.getBigDecimal(1);
+                                if (price != null) {
+                                    if (vatType == 1 && vatRate != null) {
+                                        price = price.add(price.multiply(vatRate).divide(new BigDecimal("100")));
+                                    }
+                                    if (vatType == 1 && lastPriceType == 1 && "1".equals(rs.getString("vat_type")) && rs.getBigDecimal("price") != null) {
+                                        price = rs.getBigDecimal("price");
+                                    }
+                                    source = "last_sale";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            JSONObject row = new JSONObject().put("item_code", itemCode).put("unit_code", unitCode)
+                    .put("price", price == null ? JSONObject.NULL : price).put("source", source);
+            return Response.ok(new JSONObject().put("success", true).put("data", row).toString(), MediaType.APPLICATION_JSON).build();
+        } catch (Exception ex) {
+            return Response.status(400).entity(new JSONObject().put("ERROR", ex.getMessage()).toString()).build();
+        }
+    }
+
+    @GET
     @Path("/images")
     @Produces("image/png")
     public Response _getImage(
@@ -1590,6 +1914,7 @@ public class MobileStockServiceAPI {
 
             _routine __routine = new _routine();
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            ensureProductInfoPermissionColumn(__conn);
 
             String _where = "";
             if (!strSearch.trim().equals("")) {
@@ -1603,7 +1928,8 @@ public class MobileStockServiceAPI {
                     + "coalesce((select handheld_list from msc_permission where user_code = code),0) as handheld_list, "
                     + "coalesce((select info_list from msc_permission where user_code = code),0) as info_list, "
                     + "coalesce((select barcode_list from msc_permission where user_code = code),0) as barcode_list, "
-                    + "coalesce((select permission_list from msc_permission where user_code = code),0) as permission_list "
+                    + "coalesce((select permission_list from msc_permission where user_code = code),0) as permission_list, "
+                    + "coalesce((select product_info_list from msc_permission where user_code = code),0) as product_info_list "
                     + "from erp_user " + _where;
             System.out.println("__strQUERY1 " + __strQUERY1);
             Statement __stmt1;
@@ -1625,6 +1951,7 @@ public class MobileStockServiceAPI {
                 obj.put("info_list", __rsHead.getString("info_list"));
                 obj.put("barcode_list", __rsHead.getString("barcode_list"));
                 obj.put("permission_list", __rsHead.getString("permission_list"));
+                obj.put("product_info_list", __rsHead.getString("product_info_list"));
                 jsarr.put(obj);
             }
 
@@ -1843,6 +2170,7 @@ public class MobileStockServiceAPI {
 
             _routine __routine = new _routine();
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            ensureProductInfoPermissionColumn(__conn);
 
             String _where = "";
             if (!strSearch.trim().equals("")) {
@@ -1856,7 +2184,8 @@ public class MobileStockServiceAPI {
                     + "coalesce((select handheld_list from msc_permission where user_code = code),0) as handheld_list, "
                     + "coalesce((select info_list from msc_permission where user_code = code),0) as info_list, "
                     + "coalesce((select permission_list from msc_permission where user_code = code),0) as permission_list, "
-                    + "coalesce((select barcode_list from msc_permission where user_code = code),0) as barcode_list "
+                    + "coalesce((select barcode_list from msc_permission where user_code = code),0) as barcode_list, "
+                    + "coalesce((select product_info_list from msc_permission where user_code = code),0) as product_info_list "
                     + "from erp_user " + _where;
             System.out.println("__strQUERY1 " + __strQUERY1);
             Statement __stmt1;
@@ -1878,6 +2207,7 @@ public class MobileStockServiceAPI {
                 obj.put("info_list", __rsHead.getString("info_list"));
                 obj.put("barcode_list", __rsHead.getString("barcode_list"));
                 obj.put("permission_list", __rsHead.getString("permission_list"));
+                obj.put("product_info_list", __rsHead.getString("product_info_list"));
                 jsarr.put(obj);
             }
 
@@ -1904,6 +2234,7 @@ public class MobileStockServiceAPI {
             @QueryParam("handheld_list") String handheld_list,
             @QueryParam("barcode_list") String barcode_list,
             @QueryParam("info_list") String info_list,
+            @QueryParam("product_info_list") String product_info_list,
             @QueryParam("permission_list") String permission_list
     ) throws Exception {
 
@@ -1918,6 +2249,7 @@ public class MobileStockServiceAPI {
             StringBuilder __query_builder = new StringBuilder();
             _routine __routine = new _routine();
             Connection __conn = __routine._connect(strDatabaseName.toLowerCase(), _global.FILE_CONFIG(strProvider));
+            ensureProductInfoPermissionColumn(__conn);
 
             Statement __stmt1;
 
@@ -1933,7 +2265,7 @@ public class MobileStockServiceAPI {
                 __stmtdelete.executeUpdate("delete from msc_permission where user_code = '" + user_code + "';");
             }
 
-            __query_builder.append("INSERT INTO msc_permission (user_code,stock_list,request_list,transfer_list,handheld_list,barcode_list,info_list,permission_list) values ('" + user_code + "','" + stock_list + "','" + request_list + "','" + transfer_list + "','" + handheld_list + "','" + barcode_list + "','" + info_list + "','" + permission_list + "');");
+            __query_builder.append("INSERT INTO msc_permission (user_code,stock_list,request_list,transfer_list,handheld_list,barcode_list,info_list,permission_list,product_info_list) values ('" + user_code + "','" + stock_list + "','" + request_list + "','" + transfer_list + "','" + handheld_list + "','" + barcode_list + "','" + info_list + "','" + permission_list + "','" + ("1".equals(product_info_list) ? "1" : "0") + "');");
 
             System.out.println("__query_builder" + __query_builder);
 
